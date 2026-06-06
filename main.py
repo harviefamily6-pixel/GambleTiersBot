@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import os
-import requests
+import aiohttp
 import urllib3
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -63,40 +63,54 @@ def has_permission(interaction):
     user_roles = [r.name for r in interaction.user.roles]
     return any(role in user_roles for role in ALLOWED_ROLES)
 
-def update_player_tier(username, gamemode, tier, retired=False):
+async def update_player_tier(username, gamemode, tier, retired=False):
     try:
-        res = requests.post(
-            f"{API_BASE}/players/{username}",
-            json={"gamemode": gamemode, "tier": tier, "retired": retired},
-            timeout=5,
-            verify=False
-        )
-        print(f"Updated {username} -> {tier} in {gamemode} | Status: {res.status_code}")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{API_BASE}/players/{username}",
+                json={"gamemode": gamemode, "tier": tier, "retired": retired},
+                ssl=False
+            ) as res:
+                print(f"Updated {username} -> {tier} in {gamemode} | Status: {res.status}")
     except Exception as e:
         print(f"Failed to update {username}: {e}")
 
-def retire_player_api(username, gamemode):
+async def retire_player_api(username, gamemode):
     try:
-        requests.post(
-            f"{API_BASE}/players/{username}/retire",
-            json={"gamemode": gamemode},
-            timeout=5,
-            verify=False
-        )
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{API_BASE}/players/{username}/retire",
+                json={"gamemode": gamemode},
+                ssl=False
+            ) as res:
+                print(f"Retired {username} in {gamemode} | Status: {res.status}")
     except Exception as e:
         print(f"Failed to retire {username}: {e}")
 
-def delete_player_tier(username, gamemode):
+async def delete_player_tier(username, gamemode):
     try:
-        requests.delete(
-            f"{API_BASE}/players/{username}/gamemode",
-            json={"gamemode": gamemode},
-            timeout=5,
-            verify=False
-        )
-        print(f"Deleted {username} from {gamemode}")
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(
+                f"{API_BASE}/players/{username}/gamemode",
+                json={"gamemode": gamemode},
+                ssl=False
+            ) as res:
+                print(f"Deleted {username} from {gamemode} | Status: {res.status}")
     except Exception as e:
         print(f"Failed to delete {username}: {e}")
+
+async def post_peaktier(username, gamemode, action):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{API_BASE}/players/{username}/peaktier",
+                json={"gamemode": gamemode, "action": action},
+                ssl=False
+            ) as res:
+                return res.status
+    except Exception as e:
+        print(f"Failed to set peak tier for {username}: {e}")
+        return 500
 
 intents = discord.Intents.default()
 intents.members = True
@@ -125,10 +139,10 @@ async def scan_guild(guild):
             continue
         active_tier, retired_tier = get_member_tier(member)
         if active_tier:
-            update_player_tier(member.name, gamemode, active_tier, retired=False)
+            await update_player_tier(member.name, gamemode, active_tier, retired=False)
             count += 1
         if retired_tier:
-            update_player_tier(member.name, gamemode, retired_tier, retired=True)
+            await update_player_tier(member.name, gamemode, retired_tier, retired=True)
             count += 1
     print(f"Scanned {guild.name}: pushed {count} players to API")
 
@@ -145,11 +159,11 @@ async def on_member_update(before, after):
     after_active, after_retired = get_member_tier(after)
     gamemode = GUILD_GAMEMODE.get(after.guild.id, "Coinflip")
     if after_active:
-        update_player_tier(after.name, gamemode, after_active, retired=False)
+        await update_player_tier(after.name, gamemode, after_active, retired=False)
     elif after_retired:
-        update_player_tier(after.name, gamemode, after_retired, retired=True)
+        await update_player_tier(after.name, gamemode, after_retired, retired=True)
     elif before_active or before_retired:
-        delete_player_tier(after.name, gamemode)
+        await delete_player_tier(after.name, gamemode)
 
 @tree.command(name="results", description="Post a player's test results")
 @app_commands.describe(
@@ -181,7 +195,7 @@ async def results(
     guild_config = GUILDS[guild_id]
     previous_active, previous_retired = get_member_tier(discord_user)
     previous_tier_display = TIER_DISPLAY.get(previous_active, "Unranked") if previous_active else "Unranked"
-    update_player_tier(discord_user.name, gamemode, tier_earned)
+    await update_player_tier(discord_user.name, gamemode, tier_earned)
     roles_to_remove = [r for r in discord_user.roles if r.name in TIER_ROLES]
     for role in roles_to_remove:
         await discord_user.remove_roles(role)
@@ -216,7 +230,7 @@ async def retire(interaction: discord.Interaction, discord_user: discord.Member)
         await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
         return
     gamemode = GUILD_GAMEMODE.get(guild_id, "Coinflip")
-    retire_player_api(discord_user.name, gamemode)
+    await retire_player_api(discord_user.name, gamemode)
     await interaction.response.send_message(
         f"{discord_user.name} has been marked as retired in {gamemode}.",
         ephemeral=True
@@ -244,22 +258,17 @@ async def peaktier(
         await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
         return
     gamemode = GUILD_GAMEMODE.get(guild_id, "Coinflip")
-    try:
-        res = requests.post(
-            f"{API_BASE}/players/{discord_user.name}/peaktier",
-            json={"gamemode": gamemode, "action": action.value},
-            timeout=5,
-            verify=False
+    status = await post_peaktier(discord_user.name, gamemode, action.value)
+    if status == 200:
+        await interaction.response.send_message(
+            f"Peak tier {'added' if action.value == 'add' else 'removed'} for {discord_user.name}.",
+            ephemeral=True
         )
-        if res.status_code == 200:
-            await interaction.response.send_message(
-                f"Peak tier {'added' if action.value == 'add' else 'removed'} for {discord_user.name}.",
-                ephemeral=True
-            )
-        else:
-            await interaction.response.send_message("Failed — player may not have a tier in this gamemode.", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"Error: {e}", ephemeral=True)
+    else:
+        await interaction.response.send_message(
+            "Failed — player may not have a tier in this gamemode.",
+            ephemeral=True
+        )
 
 class PingHandler(BaseHTTPRequestHandler):
     def do_GET(self):
