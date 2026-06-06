@@ -3,6 +3,11 @@ from discord import app_commands
 from discord.ext import commands
 import os
 import requests
+import urllib3
+from threading import Thread
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 API_BASE = "https://gamble-tiers--sightary.replit.app/api"
 
@@ -49,7 +54,7 @@ def get_member_tier(member):
             break
     for tier in RETIRED_ROLES:
         if tier in member_role_names:
-            retired_tier = tier.replace("R", "", 1)  # strips R prefix -> HT1 etc
+            retired_tier = tier.replace("R", "", 1)
             break
     return active_tier, retired_tier
 
@@ -139,7 +144,6 @@ async def on_member_update(before, after):
     elif after_retired:
         update_player_tier(after.name, gamemode, after_retired, retired=True)
     elif before_active or before_retired:
-        # Role was removed, delete from API
         delete_player_tier(after.name, gamemode)
 
 @tree.command(name="results", description="Post a player's test results")
@@ -170,12 +174,9 @@ async def results(
     previous_active, previous_retired = get_member_tier(discord_user)
     previous_tier_display = TIER_DISPLAY.get(previous_active, "Unranked") if previous_active else "Unranked"
     update_player_tier(discord_user.name, gamemode, tier_earned)
-    # Remove old tier roles
     roles_to_remove = [r for r in discord_user.roles if r.name in TIER_ROLES]
     for role in roles_to_remove:
         await discord_user.remove_roles(role)
-
-    # Give new tier role
     new_role = discord.utils.get(interaction.guild.roles, name=tier_earned)
     if new_role:
         await discord_user.add_roles(new_role)
@@ -209,15 +210,15 @@ async def retire(interaction: discord.Interaction, discord_user: discord.Member)
         f"{discord_user.name} has been marked as retired in {gamemode}.",
         ephemeral=True
     )
-    
-from threading import Thread
-from http.server import HTTPServer, BaseHTTPRequestHandler
 
 class PingHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"OK")
+    def do_HEAD(self):
+        self.send_response(200)
+        self.end_headers()
     def log_message(self, format, *args):
         pass
 
@@ -226,7 +227,5 @@ Thread(target=lambda: HTTPServer(("0.0.0.0", 8080), PingHandler).serve_forever()
 TOKEN = os.environ.get("DISCORD_TOKEN")
 if not TOKEN:
     print("ERROR: DISCORD_TOKEN environment variable not set")
-
-
 else:
     bot.run(TOKEN)
