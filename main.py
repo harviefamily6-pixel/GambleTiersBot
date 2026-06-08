@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 import os
 import aiohttp
+import asyncio
 import urllib3
 from threading import Thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -119,17 +120,6 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}", flush=True)
-    print(f"Connected to {len(bot.guilds)} guilds", flush=True)
-    for guild in bot.guilds:
-        print(f"  - {guild.name} ({guild.id})", flush=True)
-    await tree.sync()
-    print("Slash commands synced", flush=True)
-    for guild in bot.guilds:
-        await scan_guild(guild)
-
 async def scan_guild(guild):
     if guild.id not in GUILDS:
         print(f"Unknown guild {guild.id}, skipping", flush=True)
@@ -148,6 +138,35 @@ async def scan_guild(guild):
             await update_player_tier(member.name, gamemode, retired_tier, retired=True)
             count += 1
     print(f"Scanned {guild.name}: pushed {count} players to API", flush=True)
+
+async def scan_all_guilds():
+    """Scan all guilds and push tier data to API."""
+    print("Running scheduled scan of all guilds...", flush=True)
+    for guild in bot.guilds:
+        await scan_guild(guild)
+    print("Scheduled scan complete.", flush=True)
+
+async def hourly_scan_loop():
+    """Loop that scans all guilds every hour."""
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        await asyncio.sleep(3600)  # wait 1 hour
+        await scan_all_guilds()
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}", flush=True)
+    print(f"Connected to {len(bot.guilds)} guilds", flush=True)
+    for guild in bot.guilds:
+        print(f"  - {guild.name} ({guild.id})", flush=True)
+    await tree.sync()
+    print("Slash commands synced", flush=True)
+    # Initial scan on startup
+    for guild in bot.guilds:
+        await scan_guild(guild)
+    # Start hourly scan loop
+    bot.loop.create_task(hourly_scan_loop())
+    print("Hourly scan loop started.", flush=True)
 
 @bot.event
 async def on_guild_join(guild):
