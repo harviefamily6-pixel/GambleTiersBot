@@ -71,9 +71,9 @@ async def update_player_tier(username, gamemode, tier, retired=False):
                 json={"gamemode": gamemode, "tier": tier, "retired": retired},
                 ssl=False
             ) as res:
-                print(f"Updated {username} -> {tier} in {gamemode} | Status: {res.status}")
+                print(f"Updated {username} -> {tier} in {gamemode} | Status: {res.status}", flush=True)
     except Exception as e:
-        print(f"Failed to update {username}: {e}")
+        print(f"Failed to update {username}: {e}", flush=True)
 
 async def retire_player_api(username, gamemode):
     try:
@@ -83,9 +83,9 @@ async def retire_player_api(username, gamemode):
                 json={"gamemode": gamemode},
                 ssl=False
             ) as res:
-                print(f"Retired {username} in {gamemode} | Status: {res.status}")
+                print(f"Retired {username} in {gamemode} | Status: {res.status}", flush=True)
     except Exception as e:
-        print(f"Failed to retire {username}: {e}")
+        print(f"Failed to retire {username}: {e}", flush=True)
 
 async def delete_player_tier(username, gamemode):
     try:
@@ -95,9 +95,9 @@ async def delete_player_tier(username, gamemode):
                 json={"gamemode": gamemode},
                 ssl=False
             ) as res:
-                print(f"Deleted {username} from {gamemode} | Status: {res.status}")
+                print(f"Deleted {username} from {gamemode} | Status: {res.status}", flush=True)
     except Exception as e:
-        print(f"Failed to delete {username}: {e}")
+        print(f"Failed to delete {username}: {e}", flush=True)
 
 async def post_peaktier(username, gamemode, action):
     try:
@@ -109,7 +109,7 @@ async def post_peaktier(username, gamemode, action):
             ) as res:
                 return res.status
     except Exception as e:
-        print(f"Failed to set peak tier for {username}: {e}")
+        print(f"Failed to set peak tier for {username}: {e}", flush=True)
         return 500
 
 intents = discord.Intents.default()
@@ -121,19 +121,22 @@ tree = bot.tree
 
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}")
+    print(f"Logged in as {bot.user}", flush=True)
+    print(f"Connected to {len(bot.guilds)} guilds", flush=True)
+    for guild in bot.guilds:
+        print(f"  - {guild.name} ({guild.id})", flush=True)
     await tree.sync()
-    print("Slash commands synced")
+    print("Slash commands synced", flush=True)
     for guild in bot.guilds:
         await scan_guild(guild)
 
 async def scan_guild(guild):
     if guild.id not in GUILDS:
-        print(f"Unknown guild {guild.id}, skipping")
+        print(f"Unknown guild {guild.id}, skipping", flush=True)
         return
     gamemode = GUILD_GAMEMODE.get(guild.id, "Coinflip")
     count = 0
-    print(f"Scanning {guild.name} for tier roles...")
+    print(f"Scanning {guild.name} for tier roles...", flush=True)
     async for member in guild.fetch_members(limit=None):
         if member.bot:
             continue
@@ -144,11 +147,11 @@ async def scan_guild(guild):
         if retired_tier:
             await update_player_tier(member.name, gamemode, retired_tier, retired=True)
             count += 1
-    print(f"Scanned {guild.name}: pushed {count} players to API")
+    print(f"Scanned {guild.name}: pushed {count} players to API", flush=True)
 
 @bot.event
 async def on_guild_join(guild):
-    print(f"Joined guild: {guild.name} ({guild.id})")
+    print(f"Joined guild: {guild.name} ({guild.id})", flush=True)
     await scan_guild(guild)
 
 @bot.event
@@ -203,7 +206,7 @@ async def results(
     if new_role:
         await discord_user.add_roles(new_role)
     else:
-        print(f"Role {tier_earned} not found in guild")
+        print(f"Role {tier_earned} not found in guild", flush=True)
     embed = discord.Embed(
         title=f"{discord_user.name}'s Test Results 🏆",
         color=0xFFD700
@@ -282,9 +285,11 @@ class PingHandler(BaseHTTPRequestHandler):
         pass
 
 Thread(target=lambda: HTTPServer(("0.0.0.0", 8080), PingHandler).serve_forever(), daemon=True).start()
+print("Ping server started on port 8080", flush=True)
 
 TOKEN = os.environ.get("DISCORD_TOKEN")
 if not TOKEN:
-    print("ERROR: DISCORD_TOKEN environment variable not set")
+    print("ERROR: DISCORD_TOKEN environment variable not set", flush=True)
 else:
+    print("Starting bot...", flush=True)
     bot.run(TOKEN)
