@@ -13,7 +13,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 API_BASE = "https://gamble-tiers--sightary.replit.app/api"
 
 GUILDS = {
-    1300582189561544795: {"name": "Coinflip",  "results_channel": 1300582189561544795},
+    1300582189561544795: {"name": "Coinflip",  "results_channel": 1300582970419183679},
     1487623155295064084: {"name": "RPS",       "results_channel": 1487623156368801888},
     1487835726270824704: {"name": "Blackjack", "results_channel": 1487835727789297801},
     1511639644792684544: {"name": "Testing",   "results_channel": 1511639644792684547},
