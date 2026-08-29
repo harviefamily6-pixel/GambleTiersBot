@@ -15,23 +15,59 @@ from discord.ext import commands, tasks
 
 
 # ============================================================
-# BLACKJACK CONFIG
+# SERVER CONFIG
 # ============================================================
 
-BLACKJACK_GUILD_ID = 1487835726270824704
+GUILD_CONFIGS = {
+    # ========================================================
+    # BLACKJACK
+    # ========================================================
+    1487835726270824704: {
+        "name": "Blackjack",
 
-RESULTS_CHANNEL_ID = 1487835727789297801
+        # IMPORTANT:
+        # This is the exact gamemode name sent to the API
+        "api_gamemode": "Blackjack",
 
-# Where ticket creation panels are sent
-TICKET_PANEL_CHANNEL_ID = 1487835728002945096
+        "results_channel": 1487835727789297801,
 
-# Unranked -> HT4
-LOW_TEST_CATEGORY_ID = 1487835728585949400
+        "ticket_panel_channel": 1487835728002945096,
 
-# LT3 -> HT1
-HIGH_TEST_CATEGORY_ID = 1487835728875491359
+        # Unranked -> HT4
+        "low_test_category": 1487835728585949400,
 
-BLACKJACK_GUILD = discord.Object(id=BLACKJACK_GUILD_ID)
+        # LT3 -> HT1
+        "high_test_category": 1487835728875491359,
+    },
+
+    # ========================================================
+    # CONNECT FOUR
+    # ========================================================
+    1512966499953020928: {
+        "name": "ConnectFour",
+
+        # IMPORTANT:
+        # Exact API name requested
+        "api_gamemode": "ConnectFour",
+
+        "results_channel": 1543080533469298708,
+
+        "ticket_panel_channel": 1543080546614116433,
+
+        # Unranked -> HT4
+        "low_test_category": 1543080486627446865,
+
+        # LT3 -> HT1
+        "high_test_category": 1543080488141459597,
+    },
+}
+
+
+GUILD_OBJECTS = [
+    discord.Object(id=guild_id)
+    for guild_id in GUILD_CONFIGS
+]
+
 
 API_BASE = "https://gamble-tiers--sightary.replit.app/api"
 
@@ -46,20 +82,32 @@ STATE_FILE = os.environ.get(
 # ============================================================
 
 TIER_ROLES = [
-    "HT1", "LT1",
-    "HT2", "LT2",
-    "HT3", "LT3",
-    "HT4", "LT4",
-    "HT5", "LT5",
+    "HT1",
+    "LT1",
+    "HT2",
+    "LT2",
+    "HT3",
+    "LT3",
+    "HT4",
+    "LT4",
+    "HT5",
+    "LT5",
 ]
 
+
 RETIRED_ROLES = [
-    "RHT1", "RLT1",
-    "RHT2", "RLT2",
-    "RHT3", "RLT3",
-    "RHT4", "RLT4",
-    "RHT5", "RLT5",
+    "RHT1",
+    "RLT1",
+    "RHT2",
+    "RLT2",
+    "RHT3",
+    "RLT3",
+    "RHT4",
+    "RLT4",
+    "RHT5",
+    "RLT5",
 ]
+
 
 ALLOWED_ROLES = [
     "Verified Tester",
@@ -70,6 +118,7 @@ ALLOWED_ROLES = [
     "Manager",
     "Organizer",
 ]
+
 
 TIER_DISPLAY = {
     "HT1": "High Tier 1",
@@ -94,6 +143,7 @@ TIER_DISPLAY = {
 # ============================================================
 
 # Normal testing
+# Unranked -> HT4
 LOW_TEST_TIERS = {
     "UNRANKED",
     "LT5",
@@ -102,7 +152,9 @@ LOW_TEST_TIERS = {
     "HT4",
 }
 
+
 # High testing
+# LT3 -> HT1
 HIGH_TEST_TIERS = {
     "LT3",
     "HT3",
@@ -112,13 +164,16 @@ HIGH_TEST_TIERS = {
     "HT1",
 }
 
-# LT2+ = 7 days
+
+# LT2+ gets 7 days.
+# Everyone else gets 5 days.
 SEVEN_DAY_TIERS = {
     "LT2",
     "HT2",
     "LT1",
     "HT1",
 }
+
 
 TIER_CHOICES = [
     app_commands.Choice(
@@ -130,7 +185,32 @@ TIER_CHOICES = [
 
 
 # ============================================================
+# CONFIG HELPERS
+# ============================================================
+
+def get_guild_config(guild_id):
+    return GUILD_CONFIGS.get(guild_id)
+
+
+def get_api_gamemode(guild_id):
+
+    config = get_guild_config(guild_id)
+
+    if not config:
+        return None
+
+    return config["api_gamemode"]
+
+
+# ============================================================
 # STATE / COOLDOWN STORAGE
+#
+# Cooldowns are stored PER SERVER.
+#
+# This means:
+#
+# Blackjack cooldown != ConnectFour cooldown
+#
 # ============================================================
 
 def load_state():
@@ -206,11 +286,21 @@ def save_state():
         )
 
 
+def get_cooldown_key(
+    guild_id,
+    user_id
+):
+
+    return f"{guild_id}:{user_id}"
+
+
 # ============================================================
 # TIER HELPERS
 # ============================================================
 
-def get_member_tier(member: discord.Member):
+def get_member_tier(
+    member: discord.Member
+):
 
     role_names = {
         role.name
@@ -228,23 +318,35 @@ def get_member_tier(member: discord.Member):
 
     retired_tier = next(
         (
-            retired.replace("R", "", 1)
+            retired.replace(
+                "R",
+                "",
+                1
+            )
             for retired in RETIRED_ROLES
             if retired in role_names
         ),
         None
     )
 
-    return active_tier, retired_tier
+    return (
+        active_tier,
+        retired_tier
+    )
 
 
-def get_effective_tier(member: discord.Member):
+def get_effective_tier(
+    member: discord.Member
+):
 
     active_tier, retired_tier = get_member_tier(
         member
     )
 
-    return active_tier or retired_tier
+    return (
+        active_tier
+        or retired_tier
+    )
 
 
 def tier_display(tier):
@@ -258,7 +360,9 @@ def tier_display(tier):
     )
 
 
-def has_permission(interaction: discord.Interaction):
+def has_permission(
+    interaction: discord.Interaction
+):
 
     if not isinstance(
         interaction.user,
@@ -277,7 +381,9 @@ def has_permission(interaction: discord.Interaction):
     )
 
 
-def is_ticket_staff(member: discord.Member):
+def is_ticket_staff(
+    member: discord.Member
+):
 
     role_names = {
         role.name
@@ -316,7 +422,10 @@ def make_ticket_channel_name(
     tier
 ):
 
-    tier_part = tier or "Unranked"
+    tier_part = (
+        tier
+        or "Unranked"
+    )
 
     username = (
         member.display_name
@@ -330,7 +439,9 @@ def make_ticket_channel_name(
     ).strip("-")
 
     if not username:
-        username = str(member.id)
+        username = str(
+            member.id
+        )
 
     return (
         f"{tier_part}-{username}"
@@ -406,6 +517,7 @@ async def api_request(
 
 async def update_player_tier(
     username,
+    gamemode,
     tier,
     retired=False
 ):
@@ -419,7 +531,7 @@ async def update_player_tier(
         "POST",
         f"/players/{safe_username}",
         {
-            "gamemode": "Blackjack",
+            "gamemode": gamemode,
             "tier": tier,
             "retired": retired
         }
@@ -427,7 +539,8 @@ async def update_player_tier(
 
     print(
         f"Updated {username} -> {tier} "
-        f"in Blackjack | retired={retired} "
+        f"in {gamemode} "
+        f"| retired={retired} "
         f"| Status: {status}",
         flush=True
     )
@@ -435,7 +548,10 @@ async def update_player_tier(
     return status
 
 
-async def retire_player_api(username):
+async def retire_player_api(
+    username,
+    gamemode
+):
 
     safe_username = quote(
         username,
@@ -446,12 +562,12 @@ async def retire_player_api(username):
         "POST",
         f"/players/{safe_username}/retire",
         {
-            "gamemode": "Blackjack"
+            "gamemode": gamemode
         }
     )
 
     print(
-        f"Retired {username} in Blackjack "
+        f"Retired {username} in {gamemode} "
         f"| Status: {status}",
         flush=True
     )
@@ -459,7 +575,10 @@ async def retire_player_api(username):
     return status
 
 
-async def delete_player_tier(username):
+async def delete_player_tier(
+    username,
+    gamemode
+):
 
     safe_username = quote(
         username,
@@ -470,12 +589,12 @@ async def delete_player_tier(username):
         "DELETE",
         f"/players/{safe_username}/gamemode",
         {
-            "gamemode": "Blackjack"
+            "gamemode": gamemode
         }
     )
 
     print(
-        f"Deleted {username} from Blackjack "
+        f"Deleted {username} from {gamemode} "
         f"| Status: {status}",
         flush=True
     )
@@ -485,6 +604,7 @@ async def delete_player_tier(username):
 
 async def post_peaktier(
     username,
+    gamemode,
     action
 ):
 
@@ -497,7 +617,7 @@ async def post_peaktier(
         "POST",
         f"/players/{safe_username}/peaktier",
         {
-            "gamemode": "Blackjack",
+            "gamemode": gamemode,
             "action": action
         }
     )
@@ -510,6 +630,7 @@ async def post_peaktier(
 # ============================================================
 
 def set_local_cooldown(
+    guild_id,
     user_id,
     tier,
     started_at=None,
@@ -518,23 +639,36 @@ def set_local_cooldown(
 
     started_at = (
         started_at
-        or datetime.now(timezone.utc)
+        or datetime.now(
+            timezone.utc
+        )
     )
 
     days = (
         days
-        or cooldown_days_for_tier(tier)
+        or cooldown_days_for_tier(
+            tier
+        )
     )
 
     expires_at = (
         started_at
-        + timedelta(days=days)
+        + timedelta(
+            days=days
+        )
+    )
+
+    key = get_cooldown_key(
+        guild_id,
+        user_id
     )
 
     STATE.setdefault(
         "cooldowns",
         {}
-    )[str(user_id)] = {
+    )[key] = {
+        "guild_id": guild_id,
+        "user_id": user_id,
         "tier": tier,
         "days": days,
         "started_at": started_at.timestamp(),
@@ -546,13 +680,21 @@ def set_local_cooldown(
     return expires_at
 
 
-def get_local_cooldown(user_id):
+def get_local_cooldown(
+    guild_id,
+    user_id
+):
+
+    key = get_cooldown_key(
+        guild_id,
+        user_id
+    )
 
     entry = STATE.setdefault(
         "cooldowns",
         {}
     ).get(
-        str(user_id)
+        key
     )
 
     if not entry:
@@ -561,15 +703,18 @@ def get_local_cooldown(user_id):
     try:
 
         expires_at = datetime.fromtimestamp(
-            float(entry["expires_at"]),
+            float(
+                entry["expires_at"]
+            ),
             tz=timezone.utc
         )
 
-        # Automatically remove expired cooldowns
-        if expires_at <= datetime.now(timezone.utc):
+        if expires_at <= datetime.now(
+            timezone.utc
+        ):
 
             STATE["cooldowns"].pop(
-                str(user_id),
+                key,
                 None
             )
 
@@ -578,20 +723,25 @@ def get_local_cooldown(user_id):
             return None
 
         return {
-            "tier": entry.get("tier"),
+            "tier": entry.get(
+                "tier"
+            ),
+
             "days": int(
                 entry.get(
                     "days",
                     5
                 )
             ),
-            "expires_at": expires_at
+
+            "expires_at":
+                expires_at
         }
 
     except Exception:
 
         STATE["cooldowns"].pop(
-            str(user_id),
+            key,
             None
         )
 
@@ -600,7 +750,15 @@ def get_local_cooldown(user_id):
         return None
 
 
-def remove_local_cooldown(user_id):
+def remove_local_cooldown(
+    guild_id,
+    user_id
+):
+
+    key = get_cooldown_key(
+        guild_id,
+        user_id
+    )
 
     cooldowns = STATE.setdefault(
         "cooldowns",
@@ -608,12 +766,11 @@ def remove_local_cooldown(user_id):
     )
 
     existed = (
-        str(user_id)
-        in cooldowns
+        key in cooldowns
     )
 
     cooldowns.pop(
-        str(user_id),
+        key,
         None
     )
 
@@ -632,11 +789,13 @@ intents.members = True
 intents.message_content = True
 
 
-class BlackjackBot(commands.Bot):
+class TierlistBot(
+    commands.Bot
+):
 
     async def setup_hook(self):
 
-        # Persistent buttons
+        # Persistent ticket buttons
         self.add_view(
             LowTestTicketView()
         )
@@ -645,25 +804,36 @@ class BlackjackBot(commands.Bot):
             HighTestTicketView()
         )
 
-        # Remove old global commands
+        # Clear old global commands
         await self.tree.sync()
 
-        # Sync Blackjack commands
-        synced = await self.tree.sync(
-            guild=BLACKJACK_GUILD
-        )
+        # Sync commands to each configured server
+        for guild_id in GUILD_CONFIGS:
 
-        print(
-            f"Synced {len(synced)} "
-            f"Blackjack slash commands",
-            flush=True
-        )
+            guild_object = discord.Object(
+                id=guild_id
+            )
+
+            synced = await self.tree.sync(
+                guild=guild_object
+            )
+
+            config = GUILD_CONFIGS[
+                guild_id
+            ]
+
+            print(
+                f"Synced {len(synced)} commands "
+                f"to {config['name']} "
+                f"({guild_id})",
+                flush=True
+            )
 
         if not hourly_scan_loop.is_running():
             hourly_scan_loop.start()
 
 
-bot = BlackjackBot(
+bot = TierlistBot(
     command_prefix="!",
     intents=intents
 )
@@ -680,10 +850,19 @@ async def find_existing_ticket(
     user_id: int
 ):
 
-    for category_id in (
-        LOW_TEST_CATEGORY_ID,
-        HIGH_TEST_CATEGORY_ID
-    ):
+    config = get_guild_config(
+        guild.id
+    )
+
+    if not config:
+        return None
+
+    category_ids = (
+        config["low_test_category"],
+        config["high_test_category"]
+    )
+
+    for category_id in category_ids:
 
         category = guild.get_channel(
             category_id
@@ -698,16 +877,19 @@ async def find_existing_ticket(
         for channel in category.text_channels:
 
             if (
-                parse_ticket_owner(channel)
+                parse_ticket_owner(
+                    channel
+                )
                 == user_id
             ):
+
                 return channel
 
     return None
 
 
 # ============================================================
-# AUTOMATICALLY CLOSE A PLAYER'S TICKET
+# CLOSE PLAYER TICKET
 # ============================================================
 
 async def close_player_ticket(
@@ -732,7 +914,8 @@ async def close_player_ticket(
 
         print(
             f"Automatically closed ticket "
-            f"{ticket.name} for user {user_id}",
+            f"{ticket.name} "
+            f"in {guild.name}",
             flush=True
         )
 
@@ -741,8 +924,8 @@ async def close_player_ticket(
     except discord.Forbidden:
 
         print(
-            f"Couldn't automatically close "
-            f"{ticket.name}: missing Manage Channels.",
+            f"Couldn't close {ticket.name}: "
+            f"missing Manage Channels.",
             flush=True
         )
 
@@ -751,7 +934,7 @@ async def close_player_ticket(
     except Exception as exc:
 
         print(
-            f"Couldn't automatically close ticket: {exc}",
+            f"Couldn't close ticket: {exc}",
             flush=True
         )
 
@@ -767,20 +950,20 @@ async def create_test_ticket(
     expected_group: str
 ):
 
-    # Immediately acknowledge Discord
     await interaction.response.defer(
         ephemeral=True,
         thinking=True
     )
 
-    if (
+    config = get_guild_config(
         interaction.guild_id
-        != BLACKJACK_GUILD_ID
-    ):
+    )
+
+    if not config:
 
         await interaction.followup.send(
-            "This ticket system is only available "
-            "in the Blackjack server.",
+            "This ticket system isn't configured "
+            "for this server.",
             ephemeral=True
         )
 
@@ -819,6 +1002,11 @@ async def create_test_ticket(
 
             return
 
+
+    # ========================================================
+    # CHECK THEIR CURRENT TIER
+    # ========================================================
+
     current_tier = get_effective_tier(
         member
     )
@@ -829,19 +1017,28 @@ async def create_test_ticket(
 
 
     # ========================================================
-    # WRONG TEST TYPE
+    # WRONG TEST BUTTON
     # ========================================================
 
     if current_group != expected_group:
 
         if current_group == "high":
-            correct_name = "High Tests"
+
+            correct_name = (
+                "High Tests"
+            )
 
         elif current_group == "low":
-            correct_name = "Request a Test"
+
+            correct_name = (
+                "Request a Test"
+            )
 
         else:
-            correct_name = "the correct ticket option"
+
+            correct_name = (
+                "the correct ticket option"
+            )
 
         await interaction.followup.send(
             "❌ **This ticket is not for your tier.**\n\n"
@@ -855,7 +1052,7 @@ async def create_test_ticket(
 
 
     # ========================================================
-    # ALREADY HAS OPEN TICKET
+    # EXISTING TICKET
     # ========================================================
 
     existing_ticket = await find_existing_ticket(
@@ -879,6 +1076,7 @@ async def create_test_ticket(
     # ========================================================
 
     cooldown = get_local_cooldown(
+        guild.id,
         member.id
     )
 
@@ -905,14 +1103,20 @@ async def create_test_ticket(
 
 
     # ========================================================
-    # CATEGORY
+    # CHOOSE CATEGORY
     # ========================================================
 
     if expected_group == "low":
-        category_id = LOW_TEST_CATEGORY_ID
+
+        category_id = config[
+            "low_test_category"
+        ]
 
     else:
-        category_id = HIGH_TEST_CATEGORY_ID
+
+        category_id = config[
+            "high_test_category"
+        ]
 
     category = guild.get_channel(
         category_id
@@ -924,7 +1128,8 @@ async def create_test_ticket(
     ):
 
         await interaction.followup.send(
-            "❌ The ticket category could not be found.",
+            "❌ The ticket category "
+            "could not be found.",
             ephemeral=True
         )
 
@@ -946,6 +1151,7 @@ async def create_test_ticket(
             bot.user.id
         )
 
+
     overwrites = {
 
         guild.default_role:
@@ -963,6 +1169,7 @@ async def create_test_ticket(
             )
     }
 
+
     if bot_member:
 
         overwrites[
@@ -971,11 +1178,12 @@ async def create_test_ticket(
             view_channel=True,
             send_messages=True,
             read_message_history=True,
-            manage_messages=True
+            manage_messages=True,
+            manage_channels=True
         )
 
 
-    # Staff access
+    # Give configured staff roles access
     for role_name in ALLOWED_ROLES:
 
         role = discord.utils.get(
@@ -1011,20 +1219,22 @@ async def create_test_ticket(
             category=category,
             overwrites=overwrites,
             topic=(
-                "Blackjack test ticket "
+                f"{config['name']} test ticket "
                 f"| ticket_owner_id={member.id} "
                 f"| tier={current_tier or 'UNRANKED'}"
             ),
             reason=(
-                f"Test ticket opened by "
-                f"{member} ({member.id})"
+                f"{config['name']} test ticket "
+                f"opened by {member} "
+                f"({member.id})"
             )
         )
 
     except discord.Forbidden:
 
         await interaction.followup.send(
-            "❌ I don't have permission to create tickets.\n"
+            "❌ I don't have permission "
+            "to create tickets.\n"
             "Give the bot **Manage Channels**.",
             ephemeral=True
         )
@@ -1039,8 +1249,8 @@ async def create_test_ticket(
         )
 
         await interaction.followup.send(
-            "❌ Something went wrong while creating "
-            "your ticket.",
+            "❌ Something went wrong "
+            "while creating your ticket.",
             ephemeral=True
         )
 
@@ -1052,21 +1262,33 @@ async def create_test_ticket(
     # ========================================================
 
     ticket_embed = discord.Embed(
-        title="Blackjack Test Request 🎫",
+        title=(
+            f"{config['name']} "
+            f"Test Request 🎫"
+        ),
         description=(
-            f"**Testee:** {member.mention}\n"
+            f"**Testee:** "
+            f"{member.mention}\n"
+
             f"**Current Tier:** "
             f"{tier_display(current_tier)}\n\n"
 
-            "A tester can now handle this test.\n\n"
+            "A tester can now handle "
+            "this test.\n\n"
 
-            "When the test is finished, use "
-            "`/result` to record their result.\n\n"
+            "When the test is finished, "
+            "use `/result` to record "
+            "their result.\n\n"
 
-            "Use `/close` to manually close this ticket."
+            "The ticket will automatically "
+            "close when the player is resulted.\n\n"
+
+            "Use `/close` if you need to "
+            "close it manually."
         ),
         color=0x5865F2
     )
+
 
     await ticket_channel.send(
         content=member.mention,
@@ -1076,6 +1298,7 @@ async def create_test_ticket(
             roles=False
         )
     )
+
 
     await interaction.followup.send(
         "✅ Your test ticket has been created:\n"
@@ -1088,7 +1311,9 @@ async def create_test_ticket(
 # NORMAL TEST BUTTON
 # ============================================================
 
-class LowTestTicketView(discord.ui.View):
+class LowTestTicketView(
+    discord.ui.View
+):
 
     def __init__(self):
 
@@ -1100,7 +1325,7 @@ class LowTestTicketView(discord.ui.View):
     @discord.ui.button(
         label="📨 Open a ticket!",
         style=discord.ButtonStyle.primary,
-        custom_id="blackjack_ticket:low"
+        custom_id="tierlist_ticket:low"
     )
     async def low_test_button(
         self,
@@ -1118,7 +1343,9 @@ class LowTestTicketView(discord.ui.View):
 # HIGH TEST BUTTON
 # ============================================================
 
-class HighTestTicketView(discord.ui.View):
+class HighTestTicketView(
+    discord.ui.View
+):
 
     def __init__(self):
 
@@ -1130,7 +1357,7 @@ class HighTestTicketView(discord.ui.View):
     @discord.ui.button(
         label="📨 Open a ticket!",
         style=discord.ButtonStyle.danger,
-        custom_id="blackjack_ticket:high"
+        custom_id="tierlist_ticket:high"
     )
     async def high_test_button(
         self,
@@ -1147,27 +1374,25 @@ class HighTestTicketView(discord.ui.View):
 # ============================================================
 # TICKET PANELS
 #
-# TWO SEPARATE MESSAGES
+# TWO SEPARATE MESSAGES PER SERVER
 # ============================================================
 
-async def ensure_ticket_panel():
+async def ensure_ticket_panel(
+    guild: discord.Guild
+):
 
-    guild = bot.get_guild(
-        BLACKJACK_GUILD_ID
+    config = get_guild_config(
+        guild.id
     )
 
-    if not guild:
-
-        print(
-            "Blackjack guild not found.",
-            flush=True
-        )
-
+    if not config:
         return
 
+
     panel_channel = guild.get_channel(
-        TICKET_PANEL_CHANNEL_ID
+        config["ticket_panel_channel"]
     )
+
 
     if not isinstance(
         panel_channel,
@@ -1177,13 +1402,14 @@ async def ensure_ticket_panel():
         try:
 
             panel_channel = await guild.fetch_channel(
-                TICKET_PANEL_CHANNEL_ID
+                config["ticket_panel_channel"]
             )
 
         except Exception as exc:
 
             print(
-                f"Ticket panel channel not found: {exc}",
+                f"{config['name']} ticket panel "
+                f"channel not found: {exc}",
                 flush=True
             )
 
@@ -1192,6 +1418,15 @@ async def ensure_ticket_panel():
 
     normal_panel_exists = False
     high_panel_exists = False
+
+
+    normal_footer = (
+        f"{config['name']} Normal Test Tickets"
+    )
+
+    high_footer = (
+        f"{config['name']} High Test Tickets"
+    )
 
 
     # ========================================================
@@ -1206,7 +1441,8 @@ async def ensure_ticket_panel():
 
             if (
                 not bot.user
-                or message.author.id != bot.user.id
+                or message.author.id
+                != bot.user.id
             ):
                 continue
 
@@ -1220,35 +1456,12 @@ async def ensure_ticket_panel():
                 )
 
 
-                # Old combined panel
-                if (
-                    footer_text
-                    == "Blackjack Test Tickets"
-                ):
-
-                    try:
-
-                        await message.delete()
-
-                    except Exception:
-
-                        pass
-
-                    break
-
-
-                if (
-                    footer_text
-                    == "Blackjack Normal Test Tickets"
-                ):
+                if footer_text == normal_footer:
 
                     normal_panel_exists = True
 
 
-                if (
-                    footer_text
-                    == "Blackjack High Test Tickets"
-                ):
+                if footer_text == high_footer:
 
                     high_panel_exists = True
 
@@ -1256,7 +1469,8 @@ async def ensure_ticket_panel():
     except discord.Forbidden:
 
         print(
-            "Cannot read ticket panel history.",
+            f"Cannot read ticket panel history "
+            f"in {config['name']}.",
             flush=True
         )
 
@@ -1271,19 +1485,36 @@ async def ensure_ticket_panel():
             title="Request a Test!",
             description=(
                 "For **Unranked – HT4** players.\n\n"
-                "**5 Day Cooldown** after being resulted."
+                "**5 Day Cooldown** "
+                "after being resulted."
             ),
             color=0x00C853
         )
 
         normal_embed.set_footer(
-            text="Blackjack Normal Test Tickets"
+            text=normal_footer
         )
 
-        await panel_channel.send(
-            embed=normal_embed,
-            view=LowTestTicketView()
-        )
+        try:
+
+            await panel_channel.send(
+                embed=normal_embed,
+                view=LowTestTicketView()
+            )
+
+            print(
+                f"Posted normal ticket panel "
+                f"for {config['name']}.",
+                flush=True
+            )
+
+        except Exception as exc:
+
+            print(
+                f"Failed to post normal panel "
+                f"for {config['name']}: {exc}",
+                flush=True
+            )
 
 
     # ========================================================
@@ -1296,47 +1527,69 @@ async def ensure_ticket_panel():
             title="High Tests",
             description=(
                 "For **LT3 – HT1** players.\n\n"
-                "**LT3 / HT3:** 5 Day Cooldown\n"
-                "**LT2+:** 7 Day Cooldown"
+                "**LT3 / HT3:** "
+                "5 Day Cooldown\n"
+                "**LT2+:** "
+                "7 Day Cooldown"
             ),
             color=0xD32F2F
         )
 
         high_embed.set_footer(
-            text="Blackjack High Test Tickets"
+            text=high_footer
         )
 
-        await panel_channel.send(
-            embed=high_embed,
-            view=HighTestTicketView()
-        )
+        try:
+
+            await panel_channel.send(
+                embed=high_embed,
+                view=HighTestTicketView()
+            )
+
+            print(
+                f"Posted high ticket panel "
+                f"for {config['name']}.",
+                flush=True
+            )
+
+        except Exception as exc:
+
+            print(
+                f"Failed to post high panel "
+                f"for {config['name']}: {exc}",
+                flush=True
+            )
 
 
 # ============================================================
 # SERVER SCAN
 # ============================================================
 
-async def scan_blackjack_guild():
+async def scan_guild(
+    guild: discord.Guild
+):
 
-    guild = bot.get_guild(
-        BLACKJACK_GUILD_ID
+    config = get_guild_config(
+        guild.id
     )
 
-    if not guild:
-
-        print(
-            "Blackjack guild not found, skipping scan.",
-            flush=True
-        )
-
+    if not config:
         return
+
+
+    gamemode = config[
+        "api_gamemode"
+    ]
 
     count = 0
 
+
     print(
-        f"Scanning {guild.name} for tier roles...",
+        f"Scanning {guild.name} "
+        f"for tier roles...",
         flush=True
     )
+
 
     try:
 
@@ -1347,55 +1600,76 @@ async def scan_blackjack_guild():
             if member.bot:
                 continue
 
+
             active_tier, retired_tier = get_member_tier(
                 member
             )
+
 
             if active_tier:
 
                 await update_player_tier(
                     member.name,
+                    gamemode,
                     active_tier,
                     retired=False
                 )
 
                 count += 1
 
+
             elif retired_tier:
 
                 await update_player_tier(
                     member.name,
+                    gamemode,
                     retired_tier,
                     retired=True
                 )
 
                 count += 1
 
+
     except discord.Forbidden:
 
         print(
-            "Cannot fetch members. "
-            "Enable Server Members Intent.",
+            f"Cannot fetch members in {guild.name}. "
+            f"Enable Server Members Intent.",
             flush=True
         )
 
         return
 
+
     print(
         f"Scanned {guild.name}: "
-        f"pushed {count} players to API",
+        f"pushed {count} players "
+        f"to {gamemode} API",
         flush=True
     )
+
+
+async def scan_all_guilds():
+
+    for guild in bot.guilds:
+
+        if guild.id in GUILD_CONFIGS:
+
+            await scan_guild(
+                guild
+            )
 
 
 # ============================================================
 # HOURLY SCAN
 # ============================================================
 
-@tasks.loop(hours=1)
+@tasks.loop(
+    hours=1
+)
 async def hourly_scan_loop():
 
-    await scan_blackjack_guild()
+    await scan_all_guilds()
 
 
 @hourly_scan_loop.before_loop
@@ -1416,30 +1690,46 @@ async def on_ready():
 
     global _initial_ready_complete
 
+
     print(
         f"Logged in as {bot.user}",
         flush=True
     )
 
+
     print(
-        f"Connected to {len(bot.guilds)} guild(s)",
+        f"Connected to "
+        f"{len(bot.guilds)} guild(s)",
         flush=True
     )
+
 
     for guild in bot.guilds:
 
         print(
-            f"  - {guild.name} ({guild.id})",
+            f"  - {guild.name} "
+            f"({guild.id})",
             flush=True
         )
 
-    await ensure_ticket_panel()
 
+    # Make sure each configured server has
+    # its ticket panels.
+    for guild in bot.guilds:
+
+        if guild.id in GUILD_CONFIGS:
+
+            await ensure_ticket_panel(
+                guild
+            )
+
+
+    # Initial API scan only once
     if not _initial_ready_complete:
 
         _initial_ready_complete = True
 
-        await scan_blackjack_guild()
+        await scan_all_guilds()
 
 
 # ============================================================
@@ -1452,11 +1742,13 @@ async def on_member_update(
     after: discord.Member
 ):
 
-    if (
+    config = get_guild_config(
         after.guild.id
-        != BLACKJACK_GUILD_ID
-    ):
+    )
+
+    if not config:
         return
+
 
     before_active, before_retired = get_member_tier(
         before
@@ -1466,6 +1758,8 @@ async def on_member_update(
         after
     )
 
+
+    # Ignore updates that don't change tiers
     if (
         before_active,
         before_retired
@@ -1476,21 +1770,30 @@ async def on_member_update(
         return
 
 
+    gamemode = config[
+        "api_gamemode"
+    ]
+
+
     if after_active:
 
         await update_player_tier(
             after.name,
+            gamemode,
             after_active,
             retired=False
         )
+
 
     elif after_retired:
 
         await update_player_tier(
             after.name,
+            gamemode,
             after_retired,
             retired=True
         )
+
 
     elif (
         before_active
@@ -1498,18 +1801,23 @@ async def on_member_update(
     ):
 
         await delete_player_tier(
-            after.name
+            after.name,
+            gamemode
         )
 
 
 # ============================================================
 # /result [tier] [testee]
+#
+# Tester = person running the command
 # ============================================================
 
 @tree.command(
     name="result",
-    description="Post a player's Blackjack test result",
-    guild=BLACKJACK_GUILD
+    description="Post a player's test result"
+)
+@app_commands.guilds(
+    *GUILD_OBJECTS
 )
 @app_commands.describe(
     tier="Tier earned",
@@ -1524,6 +1832,21 @@ async def result(
     testee: discord.Member
 ):
 
+    config = get_guild_config(
+        interaction.guild_id
+    )
+
+
+    if not config:
+
+        await interaction.response.send_message(
+            "This server isn't configured.",
+            ephemeral=True
+        )
+
+        return
+
+
     if not has_permission(
         interaction
     ):
@@ -1537,7 +1860,8 @@ async def result(
         return
 
 
-    # Stops "application did not respond"
+    # Stops Discord from saying:
+    # "The application did not respond"
     await interaction.response.defer(
         ephemeral=True,
         thinking=True
@@ -1548,6 +1872,10 @@ async def result(
 
     tester = interaction.user
 
+    gamemode = config[
+        "api_gamemode"
+    ]
+
 
     # ========================================================
     # PREVIOUS TIER
@@ -1557,11 +1885,13 @@ async def result(
         testee
     )
 
+
     if previous_active:
 
         previous_tier_display = tier_display(
             previous_active
         )
+
 
     elif previous_retired:
 
@@ -1570,13 +1900,16 @@ async def result(
             "(Retired)"
         )
 
+
     else:
 
-        previous_tier_display = "Unranked"
+        previous_tier_display = (
+            "Unranked"
+        )
 
 
     # ========================================================
-    # NEW ROLE
+    # FIND NEW ROLE
     # ========================================================
 
     new_role = discord.utils.get(
@@ -1584,11 +1917,12 @@ async def result(
         name=tier_earned
     )
 
+
     if not new_role:
 
         await interaction.followup.send(
             f"❌ The `{tier_earned}` role "
-            "does not exist.",
+            f"does not exist in this server.",
             ephemeral=True
         )
 
@@ -1596,7 +1930,7 @@ async def result(
 
 
     # ========================================================
-    # REMOVE OLD TIER ROLES
+    # REMOVE OLD TIERS
     # ========================================================
 
     roles_to_remove = [
@@ -1608,6 +1942,7 @@ async def result(
         )
     ]
 
+
     try:
 
         if roles_to_remove:
@@ -1615,25 +1950,29 @@ async def result(
             await testee.remove_roles(
                 *roles_to_remove,
                 reason=(
-                    f"New Blackjack result "
+                    f"New {config['name']} result "
                     f"by {tester}"
                 )
             )
 
+
         await testee.add_roles(
             new_role,
             reason=(
-                f"Blackjack result: "
-                f"{tier_earned} by {tester}"
+                f"{config['name']} result: "
+                f"{tier_earned} "
+                f"by {tester}"
             )
         )
+
 
     except discord.Forbidden:
 
         await interaction.followup.send(
             "❌ I couldn't update the player's role.\n\n"
-            "Make sure my bot role is above all "
-            "tier roles and has **Manage Roles**.",
+            "Make sure my bot role is above "
+            "all tier roles and has "
+            "**Manage Roles**.",
             ephemeral=True
         )
 
@@ -1641,29 +1980,34 @@ async def result(
 
 
     # ========================================================
-    # WEBSITE
+    # WEBSITE API
+    #
+    # Blackjack -> "Blackjack"
+    # ConnectFour -> "ConnectFour"
     # ========================================================
 
     api_status = await update_player_tier(
         testee.name,
+        gamemode,
         tier_earned,
         retired=False
     )
 
 
     # ========================================================
-    # PUBLIC RESULT EMBED
+    # PUBLIC RESULT
     #
-    # NO COOLDOWN SHOWN
-    # NO INTERNAL FOOTER
+    # Cooldown stays private.
     # ========================================================
 
     embed = discord.Embed(
         title=(
-            f"{testee.name}'s Test Results 🏆"
+            f"{testee.name}'s "
+            f"Test Results 🏆"
         ),
         color=0xFFD700
     )
+
 
     embed.add_field(
         name="Tester:",
@@ -1671,11 +2015,13 @@ async def result(
         inline=False
     )
 
+
     embed.add_field(
         name="Previous Tier:",
         value=previous_tier_display,
         inline=False
     )
+
 
     embed.add_field(
         name="Tier Earned:",
@@ -1687,12 +2033,13 @@ async def result(
 
 
     # ========================================================
-    # RESULTS CHANNEL
+    # RESULTS CHANNEL FOR CURRENT SERVER
     # ========================================================
 
     results_channel = interaction.guild.get_channel(
-        RESULTS_CHANNEL_ID
+        config["results_channel"]
     )
+
 
     if not isinstance(
         results_channel,
@@ -1702,7 +2049,7 @@ async def result(
         try:
 
             results_channel = await interaction.guild.fetch_channel(
-                RESULTS_CHANNEL_ID
+                config["results_channel"]
             )
 
         except Exception:
@@ -1716,8 +2063,8 @@ async def result(
     ):
 
         await interaction.followup.send(
-            "❌ The Blackjack results "
-            "channel could not be found.",
+            "❌ The results channel "
+            "could not be found.",
             ephemeral=True
         )
 
@@ -1731,10 +2078,12 @@ async def result(
             embed=embed
         )
 
+
     except discord.Forbidden:
 
         await interaction.followup.send(
-            "❌ I can't post in the results channel.",
+            "❌ I can't post in the "
+            "results channel.",
             ephemeral=True
         )
 
@@ -1749,12 +2098,15 @@ async def result(
         tier_earned
     )
 
+
     expires_at = set_local_cooldown(
+        interaction.guild_id,
         testee.id,
         tier_earned,
         started_at=result_message.created_at,
         days=cooldown_days
     )
+
 
     unix_time = int(
         expires_at.timestamp()
@@ -1762,7 +2114,7 @@ async def result(
 
 
     # ========================================================
-    # FIND THEIR TICKET BEFORE WE DELETE IT
+    # FIND THEIR OPEN TICKET
     # ========================================================
 
     ticket = await find_existing_ticket(
@@ -1772,6 +2124,7 @@ async def result(
 
 
     api_note = ""
+
 
     if not (
         200 <= api_status < 300
@@ -1784,19 +2137,14 @@ async def result(
         )
 
 
-    # Only the tester sees cooldown information
-    ticket_note = (
-        "\n🎫 Their test ticket was automatically closed."
-        if ticket
-        else "\n🎫 No open test ticket was found."
-    )
-
+    # Private message only tester sees
     await interaction.followup.send(
-        f"✅ Results posted.\n\n"
+        f"✅ Results posted for "
+        f"**{config['name']}**.\n\n"
         f"{testee.mention} now has a "
         f"**{cooldown_days} day cooldown**.\n"
-        f"They can test again <t:{unix_time}:R>."
-        f"{ticket_note}"
+        f"They can test again "
+        f"<t:{unix_time}:R>."
         f"{api_note}",
         ephemeral=True
     )
@@ -1813,28 +2161,35 @@ async def result(
             await ticket.delete(
                 reason=(
                     f"Automatically closed after "
-                    f"{testee} was resulted by {tester}"
+                    f"{testee} was resulted "
+                    f"in {config['name']} "
+                    f"by {tester}"
                 )
             )
 
+
             print(
-                f"Automatically closed ticket "
-                f"{ticket.name} after /result",
+                f"Automatically closed "
+                f"{ticket.name} after /result "
+                f"in {config['name']}",
                 flush=True
             )
+
 
         except discord.Forbidden:
 
             print(
-                "Could not automatically close ticket: "
-                "missing Manage Channels.",
+                "Could not automatically close "
+                "ticket: missing Manage Channels.",
                 flush=True
             )
+
 
         except Exception as exc:
 
             print(
-                f"Could not automatically close ticket: {exc}",
+                f"Could not automatically "
+                f"close ticket: {exc}",
                 flush=True
             )
 
@@ -1843,22 +2198,41 @@ async def result(
 # /removecooldown user:
 #
 # ADMINISTRATORS ONLY
+#
+# Only removes cooldown for CURRENT SERVER.
+#
 # ============================================================
 
 @tree.command(
     name="removecooldown",
-    description="Remove a player's Blackjack testing cooldown",
-    guild=BLACKJACK_GUILD
+    description="Remove a player's testing cooldown"
+)
+@app_commands.guilds(
+    *GUILD_OBJECTS
 )
 @app_commands.describe(
-    user="The player whose cooldown you want to remove"
+    user="The player whose cooldown should be removed"
 )
 async def removecooldown(
     interaction: discord.Interaction,
     user: discord.Member
 ):
 
-    # Discord Administrator permission required
+    config = get_guild_config(
+        interaction.guild_id
+    )
+
+
+    if not config:
+
+        await interaction.response.send_message(
+            "This server isn't configured.",
+            ephemeral=True
+        )
+
+        return
+
+
     if not isinstance(
         interaction.user,
         discord.Member
@@ -1890,6 +2264,7 @@ async def removecooldown(
 
 
     existed = remove_local_cooldown(
+        interaction.guild_id,
         user.id
     )
 
@@ -1898,16 +2273,20 @@ async def removecooldown(
 
         await interaction.followup.send(
             f"✅ Removed {user.mention}'s "
-            "testing cooldown.\n\n"
-            "They can now open another test ticket.",
+            f"**{config['name']}** "
+            f"testing cooldown.\n\n"
+            "They can now open another "
+            "test ticket.",
             ephemeral=True
         )
+
 
     else:
 
         await interaction.followup.send(
             f"ℹ️ {user.mention} does not "
-            "currently have a saved cooldown.",
+            f"currently have a "
+            f"**{config['name']}** cooldown.",
             ephemeral=True
         )
 
@@ -1918,8 +2297,10 @@ async def removecooldown(
 
 @tree.command(
     name="close",
-    description="Close the current Blackjack test ticket",
-    guild=BLACKJACK_GUILD
+    description="Close the current test ticket"
+)
+@app_commands.guilds(
+    *GUILD_OBJECTS
 )
 async def close_ticket(
     interaction: discord.Interaction
@@ -1927,14 +2308,15 @@ async def close_ticket(
 
     channel = interaction.channel
 
+
     if not isinstance(
         channel,
         discord.TextChannel
     ):
 
         await interaction.response.send_message(
-            "This command can only be used "
-            "inside a test ticket.",
+            "This command can only be "
+            "used inside a test ticket.",
             ephemeral=True
         )
 
@@ -1945,10 +2327,11 @@ async def close_ticket(
         channel
     )
 
+
     if owner_id is None:
 
         await interaction.response.send_message(
-            "This is not a Blackjack test ticket.",
+            "This is not a test ticket.",
             ephemeral=True
         )
 
@@ -1957,16 +2340,21 @@ async def close_ticket(
 
     member = interaction.user
 
+
     is_owner = (
-        member.id == owner_id
+        member.id
+        == owner_id
     )
+
 
     is_staff = (
         isinstance(
             member,
             discord.Member
         )
-        and is_ticket_staff(member)
+        and is_ticket_staff(
+            member
+        )
     )
 
 
@@ -1989,7 +2377,11 @@ async def close_ticket(
         ephemeral=True
     )
 
-    await asyncio.sleep(1)
+
+    await asyncio.sleep(
+        1
+    )
+
 
     try:
 
@@ -2000,6 +2392,7 @@ async def close_ticket(
                 f"({interaction.user.id})"
             )
         )
+
 
     except discord.Forbidden:
 
@@ -2022,8 +2415,10 @@ async def close_ticket(
 
 @tree.command(
     name="retire",
-    description="Mark a Blackjack player as retired",
-    guild=BLACKJACK_GUILD
+    description="Mark a player as retired"
+)
+@app_commands.guilds(
+    *GUILD_OBJECTS
 )
 @app_commands.describe(
     testee="The player to retire"
@@ -2032,6 +2427,21 @@ async def retire(
     interaction: discord.Interaction,
     testee: discord.Member
 ):
+
+    config = get_guild_config(
+        interaction.guild_id
+    )
+
+
+    if not config:
+
+        await interaction.response.send_message(
+            "This server isn't configured.",
+            ephemeral=True
+        )
+
+        return
+
 
     if not has_permission(
         interaction
@@ -2056,6 +2466,7 @@ async def retire(
         testee
     )
 
+
     tier = (
         active_tier
         or retired_tier
@@ -2066,7 +2477,7 @@ async def retire(
 
         await interaction.followup.send(
             f"❌ {testee.mention} doesn't "
-            "currently have a tier.",
+            f"currently have a tier.",
             ephemeral=True
         )
 
@@ -2089,6 +2500,7 @@ async def retire(
             name=active_tier
         )
 
+
         try:
 
             if active_role:
@@ -2101,6 +2513,7 @@ async def retire(
                     )
                 )
 
+
             await testee.add_roles(
                 retired_role,
                 reason=(
@@ -2109,12 +2522,15 @@ async def retire(
                 )
             )
 
+
         except discord.Forbidden:
 
             await interaction.followup.send(
-                "❌ I couldn't update the retired role.\n"
-                "Make sure my bot role is above "
-                "the tier roles and has **Manage Roles**.",
+                "❌ I couldn't update "
+                "the retired role.\n"
+                "Make sure my bot role "
+                "is above the tier roles "
+                "and has **Manage Roles**.",
                 ephemeral=True
             )
 
@@ -2122,7 +2538,8 @@ async def retire(
 
 
     status = await retire_player_api(
-        testee.name
+        testee.name,
+        config["api_gamemode"]
     )
 
 
@@ -2132,9 +2549,11 @@ async def retire(
 
         await interaction.followup.send(
             f"✅ {testee.mention} has been "
-            "marked as retired in Blackjack.",
+            f"marked as retired in "
+            f"**{config['name']}**.",
             ephemeral=True
         )
+
 
     else:
 
@@ -2152,8 +2571,10 @@ async def retire(
 
 @tree.command(
     name="peaktier",
-    description="Add or remove a player's peak tier visibility",
-    guild=BLACKJACK_GUILD
+    description="Add or remove a player's peak tier visibility"
+)
+@app_commands.guilds(
+    *GUILD_OBJECTS
 )
 @app_commands.describe(
     action="Add or remove peak tier visibility",
@@ -2178,6 +2599,21 @@ async def peaktier(
     testee: discord.Member
 ):
 
+    config = get_guild_config(
+        interaction.guild_id
+    )
+
+
+    if not config:
+
+        await interaction.response.send_message(
+            "This server isn't configured.",
+            ephemeral=True
+        )
+
+        return
+
+
     if not has_permission(
         interaction
     ):
@@ -2199,6 +2635,7 @@ async def peaktier(
 
     status = await post_peaktier(
         testee.name,
+        config["api_gamemode"],
         action.value
     )
 
@@ -2213,17 +2650,20 @@ async def peaktier(
             else "removed"
         )
 
+
         await interaction.followup.send(
             f"✅ Peak tier {action_text} "
-            f"for {testee.name}.",
+            f"for {testee.name} "
+            f"in **{config['name']}**.",
             ephemeral=True
         )
+
 
     else:
 
         await interaction.followup.send(
             "❌ Failed — the player may "
-            "not have a Blackjack tier.",
+            "not have a tier in this gamemode.",
             ephemeral=True
         )
 
@@ -2243,6 +2683,7 @@ async def on_app_command_error(
         flush=True
     )
 
+
     traceback.print_exception(
         type(error),
         error,
@@ -2251,8 +2692,8 @@ async def on_app_command_error(
 
 
     message = (
-        "❌ Something went wrong while "
-        "running that command."
+        "❌ Something went wrong "
+        "while running that command."
     )
 
 
@@ -2265,12 +2706,14 @@ async def on_app_command_error(
                 ephemeral=True
             )
 
+
         else:
 
             await interaction.response.send_message(
                 message,
                 ephemeral=True
             )
+
 
     except discord.HTTPException:
 
@@ -2281,11 +2724,16 @@ async def on_app_command_error(
 # KEEP ALIVE SERVER
 # ============================================================
 
-class PingHandler(BaseHTTPRequestHandler):
+class PingHandler(
+    BaseHTTPRequestHandler
+):
 
     def do_GET(self):
 
-        self.send_response(200)
+        self.send_response(
+            200
+        )
+
         self.end_headers()
 
         self.wfile.write(
@@ -2295,7 +2743,10 @@ class PingHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
 
-        self.send_response(200)
+        self.send_response(
+            200
+        )
+
         self.end_headers()
 
 
@@ -2317,6 +2768,7 @@ def run_ping_server():
         )
     )
 
+
     server = HTTPServer(
         (
             "0.0.0.0",
@@ -2325,10 +2777,13 @@ def run_ping_server():
         PingHandler
     )
 
+
     print(
-        f"Ping server started on port {port}",
+        f"Ping server started "
+        f"on port {port}",
         flush=True
     )
+
 
     server.serve_forever()
 
@@ -2347,6 +2802,7 @@ TOKEN = os.environ.get(
     "DISCORD_TOKEN"
 )
 
+
 if not TOKEN:
 
     print(
@@ -2355,11 +2811,14 @@ if not TOKEN:
         flush=True
     )
 
+
 else:
 
     print(
-        "Starting Blackjack bot...",
+        "Starting tierlist bot...",
         flush=True
     )
 
-    bot.run(TOKEN)
+    bot.run(
+        TOKEN
+    )
